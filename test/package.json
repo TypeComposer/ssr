@@ -1,0 +1,28 @@
+{
+  "name": "test",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --outfile=dist/index.js --external:esbuild",
+    "pub": "npm run build && npm publish --access public",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "domino": "^2.1.6",
+    "esbuild": "^0.25.10",
+    "jsdom": "^27.0.0",
+    "snabbdom": "^3.6.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.6"
+  }
+}

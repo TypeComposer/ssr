@@ -1,0 +1,9 @@
+# Ativa o módulo de reescrita de URLs
+RewriteEngine On
+
+# Se o recurso solicitado não for um arquivo (-f) nem um diretório (-d)
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Redireciona todas as requisições para index.html
+RewriteRule ^.*$ /index.html [L,QSA]

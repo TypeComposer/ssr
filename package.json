@@ -1,0 +1,36 @@
+{
+  "name": "typecomposer-ssr",
+  "version": "0.0.3",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "node test/server.mjs",
+    "build": "tsc -p tsconfig.json",
+    "pub": "npm run build && npm publish --access public",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "domino": "^2.1.6",
+    "jsdom": "^27.0.0",
+    "snabbdom": "^3.6.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "@types/node": "^24.7.1",
+    "@types/jsdom": "^27.0.0"
+  },
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  }
+}
