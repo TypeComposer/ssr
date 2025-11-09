@@ -4,7 +4,7 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "node test/server.mjs",
+    "dev": "npm run build && tsx test/src/server.ts",
     "build": "tsc -p tsconfig.json",
     "pub": "npm run build && npm publish --access public",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -18,13 +18,18 @@
   "description": "",
   "dependencies": {
     "domino": "^2.1.6",
+    "esbuild": "^0.25.11",
     "jsdom": "^27.0.0",
-    "snabbdom": "^3.6.3"
+    "node-fetch": "^3.3.2",
+    "snabbdom": "^3.6.3",
+    "tsx": "^4.20.6"
   },
   "devDependencies": {
-    "typescript": "^5.9.3",
+    "@types/express": "^5.0.5",
+    "@types/jsdom": "^27.0.0",
     "@types/node": "^24.7.1",
-    "@types/jsdom": "^27.0.0"
+    "express": "^5.1.0",
+    "typescript": "^5.9.3"
   },
   "types": "dist/index.d.ts",
   "exports": {

@@ -1,3 +1,4 @@
+import fetch from "node-fetch";
 /**
  * Polyfill innerText property for environments where it's missing.
  *
@@ -219,6 +220,7 @@ export function polyfillCustomEvent(win: any) {
  * @param win - The global window-like object to patch
  */
 export function installPolyfills(win: any) {
+  win.fetch = fetch;
   polyfillMatchMedia(win);
   polyfillInnerText(win);
   polyfillShadowDOM(win);

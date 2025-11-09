@@ -1,214 +1,88 @@
+import { existsSync, readdirSync, readFileSync } from "fs";
 import { JSDOM } from "jsdom";
-import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
-import { join, extname } from "node:path";
-import esbuild from "esbuild";
+import path, { join } from "path";
 import { installPolyfills } from "./polyfill";
-import { IncomingMessage, Server, ServerOptions, ServerResponse } from "http";
-import { createServer as createServerHTTP } from "http";
+import  * as express from "express"
 
-export namespace Engine {
-  const assets = new Map<string, Buffer>();
+export class Engine {
 
-  export interface IRenderResult {
-    statusCode: number;
-    headers: Record<string, string>;
-    body: string | Buffer;
+  readonly distPath: string;
+  readonly port: number;
+
+  constructor(distPath: string, port: number) {
+    this.distPath = distPath;
+    this.port = port;
   }
 
-  function mimeByExt(pathname: string): string {
-    const ext = extname(pathname).toLowerCase();
-    switch (ext) {
-      case ".js":
-      case ".mjs":
-        return "text/javascript; charset=utf-8";
-      case ".css":
-        return "text/css; charset=utf-8";
-      case ".svg":
-        return "image/svg+xml";
-      case ".json":
-        return "application/json; charset=utf-8";
-      case ".wasm":
-        return "application/wasm";
-      case ".map":
-        return "application/json; charset=utf-8";
-      case ".png":
-        return "image/png";
-      case ".jpg":
-      case ".jpeg":
-        return "image/jpeg";
-      case ".gif":
-        return "image/gif";
-      case ".html":
-        return "text/html; charset=utf-8";
-      default:
-        return "application/octet-stream";
+  async controller(req: express.Request, res: express.Response) {
+    try {
+      console.log("Requisição para:", req.url);
+      if (req.url != '/' && existsSync(join(this.distPath, req.url)))
+        return res.sendFile(join(this.distPath, req.url));
+      const html = await this.renderHtml();
+      res.status(200).set("Content-Type", "text/html; charset=utf-8").send(html);
+    } catch (err) {
+      // console.error("Erro ao renderizar página:", err);
+      res.status(500).set("Content-Type", "text/plain; charset=utf-8").send("Erro interno ao renderizar a página");
     }
   }
 
-  async function bundleToIIFE(entry: string): Promise<string> {
-    const result = await esbuild.build({
-      entryPoints: [entry],
-      bundle: true,
-      format: "iife",
-      platform: "browser",
-      write: false,
-      sourcemap: false,
-    });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (result as any).outputFiles[0].text as string;
-  }
+  public async  renderHtml(url?: string) {
+    const html = readFileSync(path.join(this.distPath , "index.html"), "utf8");
 
-  async function renderHtml(fileJSPath: string): Promise<string> {
-    const html = `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>TypeComposer</title>
-    <link rel="stylesheet" href="./assets/index-glFbR1ha.css">
-  </head>
-  <body>
-  </body>
-</html>`;
+    const assetsDir = path.join(this.distPath , "assets");
+    const jsFile = readdirSync(assetsDir).find(f => f.match(/^index-.*\.js$/));
+    console.log("Arquivo JS encontrado:", jsFile);
+    // const cssFile = readdirSync(assetsDir).find(f => f.match(/^index-.*\.css$/));
+
+    const jsCode = jsFile ? readFileSync(path.join(assetsDir, jsFile), "utf8") : "";
+    // const cssCode = cssFile ? readFileSync(path.join(assetsDir, cssFile), "utf8") : "";
 
     const dom = new JSDOM(html, {
-      url: "http://localhost/",
+      url: `http://localhost:${this.port}/`,
       runScripts: "dangerously",
       resources: "usable",
       pretendToBeVisual: true,
     });
 
+    const doc = dom.window.document;
+    const script = doc.createElement("script");
+
     installPolyfills(dom.window as any);
 
+    if (jsCode) {
+      // script.type = "module";
+      script.textContent = jsCode;
+      doc.body.appendChild(script);
+    }
+
     await new Promise<void>((resolve) => {
-      const d = dom.window.document;
-      if (d.readyState === "interactive" || d.readyState === "complete")
-        resolve();
-      else
-        d.addEventListener("DOMContentLoaded", resolve as any, { once: true });
+      dom.window.addEventListener("DOMContentLoaded", () => resolve(), { once: true });
     });
 
-    const code = await bundleToIIFE(fileJSPath);
-    const scriptEl = dom.window.document.createElement("script");
-    scriptEl.type = "text/javascript";
-    // @ts-ignore set script content
-    scriptEl.text = code;
-    dom.window.document.body.appendChild(scriptEl);
+    // pegar os script
+    const appScript = Array.from(doc.querySelectorAll<HTMLScriptElement>("script")).find(s => s.src.endsWith(jsFile!));
+    //.find(s => s.src === jsFile);
+    console.log("🛑 App script encontrado:", appScript);
 
-    await new Promise((r) => setTimeout(r, 0));
-
-    return "<!doctype html>\n" + dom.serialize();
+    // await new Promise((resolve) => setTimeout(resolve, 200));
+    let content =  dom.serialize().replace(script.outerHTML, "");
+    if (appScript) {
+      const loadedScript = `
+      <script >
+        window.addEventListener('DOMContentLoaded', (event) => {
+          console.log('DOM fully loaded and parsed');
+          const appScript = document.createElement('script');
+          appScript.src = '${appScript.src}';
+          document.body.innerHTML = '';
+          document.head.appendChild(appScript);
+        });
+      </script>
+      `
+      content = content.replace(appScript.outerHTML, loadedScript);
+    }
+    // console.log("content:", content);
+    return content;
   }
 
-  export const controller = async (
-    req: IncomingMessage,
-    res: ServerResponse
-  ) => {
-    try {
-      const result = await Engine.render(req.url || "/");
-      res.writeHead(result.statusCode, result.headers);
-      if (typeof result.body === "string") {
-        res.end(result.body, "utf-8");
-      } else {
-        res.end(result.body);
-      }
-    } catch (e) {
-      res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
-      res.end("Internal Server Error");
-      console.error("Error during request:", e);
-    }
-  };
-
-  export async function render(urlPath: string): Promise<IRenderResult> {
-    const url = decodeURIComponent(
-      new URL(urlPath || "/", "http://localhost").pathname
-    );
-    console.log("Requisição:", url);
-
-    if (assets.has(url)) {
-      const body = assets.get(url) as Buffer;
-      return {
-        statusCode: 200,
-        headers: {
-          "Content-Type": mimeByExt(url),
-        },
-        body,
-      };
-    }
-
-    if (url === "/" || url.endsWith(".html")) {
-      const html = await renderHtml("src/template/assets/index-e5GZiL-9.js");
-      console.log("Página enviada:", url);
-      return {
-        statusCode: 200,
-        headers: {
-          "Content-Type": "text/html; charset=utf-8",
-        },
-        body: html,
-      };
-    }
-
-    return {
-      statusCode: 404,
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-      },
-      body: "Not Found",
-    };
-  }
-
-  function loadAssets(path = "src/template", folderName: string | null = null) {
-    const folder = join(process.cwd(), path);
-    if (!existsSync(folder)) return;
-
-    for (const file of readdirSync(folder)) {
-      const fullPath = join(folder, file);
-      const stat = statSync(fullPath);
-      if (stat.isFile()) {
-        const urlPath = `${folderName ? `/${folderName}` : ""}/${file}`;
-        const content = readFileSync(fullPath);
-        assets.set(urlPath, content);
-      } else if (stat.isDirectory()) {
-        loadAssets(
-          join(path, file),
-          folderName ? `${folderName}/${file}` : file
-        );
-      }
-    }
-  }
-
-  /**
-   * Create and return an HTTP server that serves the rendered application.
-   *
-   * This function loads static assets from the specified folder and sets up
-   * an HTTP server that uses the Engine's request handler to serve HTML and
-   * assets. The server can be started by calling `listen` on the returned
-   * object.
-   *
-   * @param folder - The folder path where static assets are located (default: "src/template")
-   * @returns An instance of an HTTP server
-   */
-  export function createServer<
-    Request extends typeof IncomingMessage = typeof IncomingMessage,
-    Response extends typeof ServerResponse<
-      InstanceType<Request>
-    > = typeof ServerResponse
-  >(folder: string): Server<Request, Response>;
-  export function createServer<
-    Request extends typeof IncomingMessage = typeof IncomingMessage,
-    Response extends typeof ServerResponse<
-      InstanceType<Request>
-    > = typeof ServerResponse
-  >(
-    folder: string,
-    options: ServerOptions<Request, Response>
-  ): Server<Request, Response>;
-  export function createServer(
-    folder: string = "src/template",
-    options?: any
-  ): any {
-    loadAssets(folder);
-    console.log("Loaded assets:", [...assets.keys()]);
-    if (options) return createServerHTTP(options, controller);
-    return createServerHTTP(controller);
-  }
 }
