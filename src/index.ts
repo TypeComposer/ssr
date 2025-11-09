@@ -51,7 +51,7 @@ export class Engine {
     installPolyfills(dom.window as any);
 
     if (jsCode) {
-      // script.type = "module";
+      script.type = "module";
       script.textContent = jsCode;
       doc.body.appendChild(script);
     }
@@ -61,18 +61,20 @@ export class Engine {
     });
 
     // pegar os script
-    const appScript = Array.from(doc.querySelectorAll<HTMLScriptElement>("script")).find(s => s.src.endsWith(jsFile!));
+    const appScript = Array.from(doc.querySelectorAll<HTMLScriptElement>("script"))[0];//.find(s => s.src.endsWith(jsFile!));
     //.find(s => s.src === jsFile);
     console.log("🛑 App script encontrado:", appScript);
 
     // await new Promise((resolve) => setTimeout(resolve, 200));
     let content =  dom.serialize().replace(script.outerHTML, "");
+
     if (appScript) {
-      const loadedScript = `
-      <script >
+         const loadedScript = `
+      <script  >
         window.addEventListener('DOMContentLoaded', (event) => {
           console.log('DOM fully loaded and parsed');
           const appScript = document.createElement('script');
+          appScript.type = 'module';
           appScript.src = '${appScript.src}';
           document.body.innerHTML = '';
           document.head.appendChild(appScript);

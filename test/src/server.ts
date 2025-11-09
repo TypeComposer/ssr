@@ -8,7 +8,7 @@ const dist = {
     TEST: "/Users/Ezequiel/Documents/TypeComposer/test/dist"
 }
 
-const DIST_PATH = dist.TEST;
+const DIST_PATH = dist.DOC;
 const PORT = 3000;
 
 async function startServer() {
